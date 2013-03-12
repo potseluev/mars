@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="windows-1251"?>
 <Модуль rg_version="1.0">
-  <интерфейс>
+	<интерфейс>
 		<отчет><наименование>Неиспользованный отпуск</наименование><код_раздела>zFaceAcc</код_раздела><номер_код>rep_1</номер_код><шаблон><тип>MSE</тип><мнемокод>UnusedVacation</мнемокод><файл>НеиспОтпуск.xlt</файл></шаблон></отчет></интерфейс>
-	<отчет><реализует>rep_1</реализует><переменные><переменная><имя>pdDate</имя><наименование>На дату:</наименование><тип_данных>дата</тип_данных><начальное_значение>oSystem.date</начальное_значение><форма><элемент>*TDicDate.text</элемент><группа>Параметры:</группа><закладка/></форма></переменная><переменная><имя>myCalc</имя><наименование>myCalc</наименование><тип_данных/><начальное_значение/></переменная></переменные><запуск_формы><ид>param</ид></запуск_формы><вычисление>
+	<отчет><реализует>rep_1</реализует><дополнительно><печать_из_раздела/></дополнительно><переменные><переменная><имя>pdDate</имя><наименование>На дату:</наименование><тип_данных>дата</тип_данных><начальное_значение>oSystem.date</начальное_значение><форма><элемент>*TDicDate.text</элемент><группа>Параметры:</группа><закладка/></форма></переменная><переменная><имя>myCalc</имя><наименование>myCalc</наименование><тип_данных/><начальное_значение/></переменная></переменные><запуск_формы><ид>param</ид></запуск_формы><вычисление>
 			<сообщение>Ждите, идет вычисление отчета ...</сообщение>
 			<прервать>recc("vzFcac") &lt; 1<сообщение>Данные для формирования не найдены!</сообщение>
 			</прервать>
@@ -19,26 +19,29 @@ select dist ank_rn, surname, firstname, secondname from vzfcac where ascan(armar
 
 DEFINE CLASS myCalc as Custom 
 	FUNCTION monthbetween
-		LPARAMETERS dBeg, dEnd, nDays
-		LOCAL nMonth
-		nMonth = (YEAR(dEnd) - YEAR(dBeg)) * 12
-		nMonth = nMonth + MONTH(dEnd) - MONTH(dBeg)
-		nDays = DAY(dEnd) - Day(dBeg)
-		IF nDays < 0
-			nDays = dEnd - GOMONTH(DATE(YEAR(dEnd), MONTH(dEnd), DAY(dBeg)), -1)
-		ENDIF
-		IF 15 <= nDays
-			nMonth = nMonth + 1
+		LPARAMETERS dBeg, dEnd
+		LOCAL nM
+		nM = (YEAR(dEnd) - YEAR(dBeg)) * 12 + MONTH(dEnd) - MONTH(dBeg)
+		LOCAL nD
+		nD = DAY(dEnd) - DAY(dBeg)
+		IF nD < 0
+			nM = nM - 1
 		ENDIF 
+		
+		nD = dEnd - GOMONTH(dBeg, nM)
+		IF nD >= 15
+			nM = nM + 1
+		ENDIF 
+		*infomes(DTOC(dbeg)+CHR(10)+DTOC(dend)+CHR(10)+PADL(nm, 5))
+		RETURN  nM
 			
-		RETURN nMonth
 	ENDFUNC
 	FUNCTION GetDays
 	LPARAMETERS cAnk
 	LOCAL lYes
 		SELECT MAX(fromdate) fromdate FROM zEmpLeav;
 			WHERE ank_rn == cAnk;
-			AND pdDate >= enddate   INTO CURSOR crTemp
+			AND startdate <= pdDate INTO CURSOR crTemp
 		lYes = _tally > 0 and ! EMPTY(crTemp.fromdate)
 		IF ! lYes
 			SELECT jobbegin FROM zank WHERE ank_rn == cAnk ;
@@ -53,25 +56,23 @@ DEFINE CLASS myCalc as Custom
 		nMonth = this.monthbetween(crTemp.fromdate, pdDate)
 
 		SELECT SUM(maindays) days FROM zEmpLeav WHERE fromdate in (SELECT fromdate FROM crTemp);
-			AND ank_rn == cAnk and pdDate >= enddate INTO CURSOR crDays
-		
+			AND ank_rn == cAnk and startdate <= pdDate INTO CURSOR crDays
+		*brow norm		
 		LOCAL nRet
-		IF nMonth > 12
+		IF nMonth >= 12
 			nRet = (nMonth - 12) * 2.33 - crDays.days + 28
 		ELSE 
-			nRet = nMonth * 2.33 - crDays.days
+			IF crDays.days >= 28
+				nRet = (nMonth - 12) * 2.33 - crDays.days + 28
+			ELSE 
+				nRet = nMonth * 2.33 - crDays.days
+			ENDIF 
 		ENDIF
 
 		curclose("crTemp crDays crT")
 		RETURN nRet
 	ENDFUNC 
 ENDDEFINE
-
-
-
-
-
-
 
 
 
