@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="windows-1251"?>
+<Модуль rg_version="1.0">
+  <интерфейс>
+		<отчет><наименование>Неиспользованный отпуск</наименование><код_раздела>zFaceAcc</код_раздела><номер_код>rep_1</номер_код><шаблон><тип>MSE</тип><мнемокод>UnusedVacation</мнемокод><файл>НеиспОтпуск.xlt</файл></шаблон></отчет></интерфейс>
+	<отчет><реализует>rep_1</реализует><переменные><переменная><имя>pdDate</имя><наименование>На дату:</наименование><тип_данных>дата</тип_данных><начальное_значение>oSystem.date</начальное_значение><форма><элемент>*TDicDate.text</элемент><группа>Параметры:</группа><закладка/></форма></переменная><переменная><имя>myCalc</имя><наименование>myCalc</наименование><тип_данных/><начальное_значение/></переменная></переменные><запуск_формы><ид>param</ид></запуск_формы><вычисление>
+			<сообщение>Ждите, идет вычисление отчета ...</сообщение>
+			<прервать>recc("vzFcac") &lt; 1<сообщение>Данные для формирования не найдены!</сообщение>
+			</прервать>
+			<FPC_><![CDATA[*[VFP]
+dime arMark[alen(objRepGen.oGrid.markkeys)]
+acop(objRepGen.oGrid.markkeys, armark)
+if isnull(armark)
+	armark[1] = vzFcac.ank_rn
+endIf
+
+myCalc = createo("myCalc")
+select dist ank_rn, surname, firstname, secondname from vzfcac where ascan(armark, fcac_rn) > 0 into cursor crRes order by surname, firstname, secondname
+
+
+DEFINE CLASS myCalc as Custom 
+	FUNCTION monthbetween
+		LPARAMETERS dBeg, dEnd, nDays
+		LOCAL nMonth
+		nMonth = (YEAR(dEnd) - YEAR(dBeg)) * 12
+		nMonth = nMonth + MONTH(dEnd) - MONTH(dBeg)
+		nDays = DAY(dEnd) - Day(dBeg)
+		IF nDays < 0
+			nDays = dEnd - GOMONTH(DATE(YEAR(dEnd), MONTH(dEnd), DAY(dBeg)), -1)
+		ENDIF
+		IF 15 <= nDays
+			nMonth = nMonth + 1
+		ENDIF 
+			
+		RETURN nMonth
+	ENDFUNC
+	FUNCTION GetDays
+	LPARAMETERS cAnk
+	LOCAL lYes
+		SELECT MAX(fromdate) fromdate FROM zEmpLeav;
+			WHERE ank_rn == cAnk;
+			AND pdDate >= enddate   INTO CURSOR crTemp
+		lYes = _tally > 0 and ! EMPTY(crTemp.fromdate)
+		IF ! lYes
+			SELECT jobbegin FROM zank WHERE ank_rn == cAnk ;
+				UNION select lastjobbeg from zank where ank_rn == cAnk INTO CURSOR crT
+			SELECT max(jobbegin) fromdate from crT;
+				INTO CURSOR crTemp
+			IF EMPTY(crTemp.fromdate)
+				RETURN 0
+			ENDIF
+		ENDIF 
+		LOCAL nMonth, nInvMonth
+		nMonth = this.monthbetween(crTemp.fromdate, pdDate)
+
+		SELECT SUM(maindays) days FROM zEmpLeav WHERE fromdate in (SELECT fromdate FROM crTemp);
+			AND ank_rn == cAnk and pdDate >= enddate INTO CURSOR crDays
+		
+		LOCAL nRet
+		IF nMonth > 12
+			nRet = (nMonth - 12) * 2.33 - crDays.days + 28
+		ELSE 
+			nRet = nMonth * 2.33 - crDays.days
+		ENDIF
+
+		curclose("crTemp crDays crT")
+		RETURN nRet
+	ENDFUNC 
+ENDDEFINE
+
+
+
+
+
+
+
+
+
+
+]]></FPC_></вычисление>
+		<печать><MSE>
+				<область>Header</область>
+				<таблица>
+					<алиас_таблицы>crRes</алиас_таблицы>
+					<область>Spec</область>
+				</таблица>
+				<область>Footer</область>
+			</MSE>
+		</печать></отчет><форма>
+		<ид>param</ид>
+		<тип>VFP_CLASS</тип>
+		<FPC_><![CDATA[*class=rep_1
+
+define class rep_1 as TDialog_rep    && RE form generator
+ name    = "rep_1"
+ caption = "Параметры формирования отчета"
+ tag     = "authogen"
+ width	 = 281
+ height	 = 85
+
+
+ add object shp_gr1 as T3DShape with tag="grp=gr1,grpFrame"
+ add object lbl_gr1 as TLabel with caption="Параметры:", tag="grp=gr1,grpFrame"
+ add object Lbl_pdDate as TLabel with caption='На дату:', tag="grp=gr1,bind2Next"
+ add object pdDate as TDicDate with tag="grp=gr1", text.controlsource = "pdDate", text.sourceisvar = .T., text.notempty = .t., notempty = .t.
+
+enddefine &&  rep_1
+
+
+]]></FPC_>
+	</форма>
+</Модуль>
